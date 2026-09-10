@@ -27,15 +27,24 @@ const nodeHeight = 140;
 const getLayoutedElements = (nodes, edges) => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
-
   dagreGraph.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60 });
 
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+  // Keep standalone/floating pages out of Dagre. If they are included here and
+  // moved afterward, Dagre leaves their reserved slots behind as blank gaps in
+  // the connected page tree.
+  const hierarchyEdges = edges.filter(e => e.type !== 'blockRoute');
+  const connectedNodeIds = new Set(['root']);
+  hierarchyEdges.forEach((edge) => {
+    connectedNodeIds.add(edge.source);
+    connectedNodeIds.add(edge.target);
   });
 
-  // Only layout structural hierarchy edges in Dagre, ignore block route edges
-  const hierarchyEdges = edges.filter(e => e.type !== 'blockRoute');
+  const connectedNodes = nodes.filter(node => connectedNodeIds.has(node.id));
+  const floatingNodes = nodes.filter(node => !connectedNodeIds.has(node.id));
+
+  connectedNodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+  });
 
   hierarchyEdges.forEach((edge) => {
     dagreGraph.setEdge(edge.source, edge.target);
@@ -44,11 +53,10 @@ const getLayoutedElements = (nodes, edges) => {
   dagre.layout(dagreGraph);
 
   let maxConnectedY = 0;
-
-  const connectedNodes = nodes.map((node) => {
+  const layoutedConnectedNodes = connectedNodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const yPos = nodeWithPosition ? nodeWithPosition.y - nodeHeight / 2 : 0;
-    if (yPos > maxConnectedY) maxConnectedY = yPos;
+    maxConnectedY = Math.max(maxConnectedY, yPos);
 
     return {
       ...node,
@@ -61,24 +69,18 @@ const getLayoutedElements = (nodes, edges) => {
     };
   });
 
-  let floatingOffset = 0;
-  const layoutedNodes = connectedNodes.map(node => {
-    const hasHierarchyParent = hierarchyEdges.some(e => e.target === node.id);
-    const hasHierarchyChild = hierarchyEdges.some(e => e.source === node.id);
-    
-    if (node.id !== 'root' && !hasHierarchyParent && !hasHierarchyChild) {
-      const floatX = (floatingOffset % 3) * (nodeWidth + 40);
-      const floatY = maxConnectedY + 200 + Math.floor(floatingOffset / 3) * (nodeHeight + 40);
-      floatingOffset++;
-      return {
-        ...node,
-        position: { x: floatX, y: floatY }
-      };
-    }
-    return node;
+  const layoutedFloatingNodes = floatingNodes.map((node, index) => {
+    const floatX = (index % 3) * (nodeWidth + 40);
+    const floatY = maxConnectedY + 200 + Math.floor(index / 3) * (nodeHeight + 40);
+    return {
+      ...node,
+      targetPosition: 'top',
+      sourcePosition: 'bottom',
+      position: { x: floatX, y: floatY }
+    };
   });
 
-  return { nodes: layoutedNodes, edges };
+  return { nodes: [...layoutedConnectedNodes, ...layoutedFloatingNodes], edges };
 };
 
 function FlowCanvas({ onEditNode }) {
@@ -154,6 +156,7 @@ function FlowCanvas({ onEditNode }) {
         data: {
           title: page.title,
           description: page.description,
+          pageColor: page.pageColor || 'default',
           childCount,
           isDragTarget: page.id === dragTargetNodeId,
           onEdit: onEditNode,

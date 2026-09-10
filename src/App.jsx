@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sun, Moon, Download, Upload, LayoutTemplate, ListTree, FolderKanban, Plus, Edit2, Trash2, AlertTriangle, Printer, HelpCircle, Undo2, Redo2 } from 'lucide-react';
+import { Download, Upload, LayoutTemplate, ListTree, FolderKanban, Plus, AlertTriangle, Printer, HelpCircle, Undo2, Redo2, ChevronDown, FilePlus2, Network, RefreshCw } from 'lucide-react';
 import FlowView from './components/FlowView/FlowView';
 import ListView from './components/ListView/ListView';
 import PageDetails from './components/PageDetails/PageDetails';
@@ -9,11 +9,12 @@ import PrintModal from './components/PrintModal/PrintModal';
 import PrintView from './components/PrintView/PrintView';
 import WelcomeModal from './components/WelcomeModal/WelcomeModal';
 import TutorialModal from './components/TutorialModal/TutorialModal';
+import SitemapImportModal from './components/SitemapImportModal/SitemapImportModal';
+import SitemapRefreshModal from './components/SitemapRefreshModal/SitemapRefreshModal';
 import { useStore } from './store/useStore';
 
 function App() {
   const [view, setView] = useState('flow'); // 'flow' | 'list'
-  const [theme, setTheme] = useState('dark');
   const [editingPageId, setEditingPageId] = useState(null);
   
   const [isRenamingPlan, setIsRenamingPlan] = useState(false);
@@ -28,10 +29,16 @@ function App() {
 
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [isTutorialModalOpen, setIsTutorialModalOpen] = useState(false);
+  const [isNewPlanMenuOpen, setIsNewPlanMenuOpen] = useState(false);
+  const [isSitemapImportOpen, setIsSitemapImportOpen] = useState(false);
+  const [isSitemapRefreshOpen, setIsSitemapRefreshOpen] = useState(false);
+  const newPlanMenuRef = useRef(null);
 
   const plans = useStore(state => state.plans || []);
   const activePlanId = useStore(state => state.activePlanId);
   const createPlan = useStore(state => state.createPlan);
+  const createPlanFromSitemap = useStore(state => state.createPlanFromSitemap);
+  const refreshPlanFromSitemap = useStore(state => state.refreshPlanFromSitemap);
   const switchPlan = useStore(state => state.switchPlan);
   const deletePlan = useStore(state => state.deletePlan);
 
@@ -45,6 +52,16 @@ function App() {
   const fileInputRef = useRef(null);
 
   const activePlan = plans.find(p => p.id === activePlanId) || plans[0] || {};
+
+  useEffect(() => {
+    const closeMenu = (event) => {
+      if (newPlanMenuRef.current && !newPlanMenuRef.current.contains(event.target)) {
+        setIsNewPlanMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', closeMenu);
+    return () => document.removeEventListener('mousedown', closeMenu);
+  }, []);
 
   // Auto-show Welcome modal if only demo plan exists or on first launch
   useEffect(() => {
@@ -111,10 +128,6 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [editingPageId]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
-
   const handleImport = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -174,22 +187,87 @@ function App() {
               {activePlan.name} {activePlan.isDemo ? '(Demo)' : ''}
             </span>
 
-            <button 
-              onClick={() => createPlan(`Plan ${plans.length + 1}`)} 
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: '4px',
-                padding: '5px 10px', 
-                backgroundColor: 'var(--bg-color)', 
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.8125rem',
-                fontWeight: 500
-              }} 
-              title="Create New Plan"
-            >
-              <Plus size={14} /> New Plan
-            </button>
+            {activePlan.sourceUrl && !activePlan.isDemo && (
+              <button
+                onClick={() => setIsSitemapRefreshOpen(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 9px',
+                  color: 'var(--primary-color)', border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)', fontSize: '0.78rem', fontWeight: 600
+                }}
+                title="Check the source sitemap for changes"
+              >
+                <RefreshCw size={14} /> Refresh Sitemap
+              </button>
+            )}
+
+            <div ref={newPlanMenuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setIsNewPlanMenuOpen(open => !open)}
+                aria-haspopup="menu"
+                aria-expanded={isNewPlanMenuOpen}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  padding: '5px 9px',
+                  backgroundColor: 'var(--bg-color)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.8125rem',
+                  fontWeight: 500
+                }}
+                title="Create New Plan"
+              >
+                <Plus size={14} /> New Plan <ChevronDown size={13} />
+              </button>
+
+              {isNewPlanMenuOpen && (
+                <div
+                  role="menu"
+                  style={{
+                    position: 'absolute', top: 'calc(100% + 7px)', left: 0, width: '230px',
+                    padding: '6px', zIndex: 50, backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
+                    boxShadow: '0 12px 30px rgba(0,0,0,0.22)'
+                  }}
+                >
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      createPlan(`Plan ${plans.length + 1}`);
+                      setIsNewPlanMenuOpen(false);
+                    }}
+                    style={{
+                      display: 'flex', width: '100%', gap: '10px', padding: '10px',
+                      textAlign: 'left', borderRadius: '6px', color: 'var(--text-primary)'
+                    }}
+                  >
+                    <FilePlus2 size={18} style={{ color: 'var(--primary-color)', flexShrink: 0 }} />
+                    <span>
+                      <strong style={{ display: 'block', fontSize: '0.82rem' }}>Build from Scratch</strong>
+                      <small style={{ color: 'var(--text-secondary)' }}>Start with the default page structure</small>
+                    </span>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setIsNewPlanMenuOpen(false);
+                      setIsSitemapImportOpen(true);
+                    }}
+                    style={{
+                      display: 'flex', width: '100%', gap: '10px', padding: '10px',
+                      textAlign: 'left', borderRadius: '6px', color: 'var(--text-primary)'
+                    }}
+                  >
+                    <Network size={18} style={{ color: 'var(--primary-color)', flexShrink: 0 }} />
+                    <span>
+                      <strong style={{ display: 'block', fontSize: '0.82rem' }}>Build from Sitemap</strong>
+                      <small style={{ color: 'var(--text-secondary)' }}>Generate a tree from sitemap XML</small>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Warning Banner for Unsaved Demo Plan */}
@@ -313,9 +391,6 @@ function App() {
             <HelpCircle size={20} />
           </button>
 
-          <button onClick={toggleTheme} style={{ color: 'var(--text-secondary)' }} title="Toggle Theme">
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
         </div>
       </nav>
 
@@ -407,6 +482,19 @@ function App() {
         <TutorialModal
           isOpen={isTutorialModalOpen}
           onClose={() => setIsTutorialModalOpen(false)}
+        />
+
+        <SitemapImportModal
+          isOpen={isSitemapImportOpen}
+          onClose={() => setIsSitemapImportOpen(false)}
+          onCreate={createPlanFromSitemap}
+        />
+
+        <SitemapRefreshModal
+          isOpen={isSitemapRefreshOpen}
+          plan={activePlan}
+          onClose={() => setIsSitemapRefreshOpen(false)}
+          onApply={refreshPlanFromSitemap}
         />
 
       </main>

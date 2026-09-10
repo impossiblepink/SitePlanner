@@ -176,7 +176,7 @@ button {
 
 /* Print Styles */
 @media print {
-  body {
+body {
     background-color: #ffffff !important;
     color: #000000 !important;
   }
@@ -215,4 +215,12 @@ button {
     color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
 }

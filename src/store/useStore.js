@@ -15,6 +15,24 @@ const generateUniquePageTitle = (baseTitle = 'New Page', pages = []) => {
   return `${baseTitle} ${counter}`;
 };
 
+const clone = (value) => JSON.parse(JSON.stringify(value));
+const storedSitemapKey = (page) => {
+  if (page.pageOrigin === 'manual') return null;
+  return page.sitemapKey || (page.url ? page.url.replace(/\/$/, '') : null);
+};
+
+const planSnapshot = (state) => {
+  const plan = (state.plans || []).find(item => item.id === state.activePlanId) || {};
+  return {
+    pages: clone(state.pages || []),
+    blocks: clone(state.blocks || {}),
+    attachments: clone(state.attachments || {}),
+    sitemapSettings: clone(plan.sitemapSettings || null),
+    sitemapSnapshot: clone(plan.sitemapSnapshot || []),
+    lastSitemapRefresh: plan.lastSitemapRefresh || null
+  };
+};
+
 const createDefaultPlanData = (name = 'Default Sitemap', isDemo = false) => {
   const rootId = 'root';
   const child1Id = uuidv4();
@@ -35,7 +53,8 @@ const createDefaultPlanData = (name = 'Default Sitemap', isDemo = false) => {
         parentId: null, 
         order: 0,
         sectionTitle: '',
-        sectionDescription: ''
+        sectionDescription: '',
+        pageColor: 'default'
       },
       { 
         id: child1Id, 
@@ -44,7 +63,8 @@ const createDefaultPlanData = (name = 'Default Sitemap', isDemo = false) => {
         parentId: rootId, 
         order: 0,
         sectionTitle: '',
-        sectionDescription: ''
+        sectionDescription: '',
+        pageColor: 'default'
       },
       { 
         id: child2Id, 
@@ -53,7 +73,8 @@ const createDefaultPlanData = (name = 'Default Sitemap', isDemo = false) => {
         parentId: rootId, 
         order: 1,
         sectionTitle: '',
-        sectionDescription: ''
+        sectionDescription: '',
+        pageColor: 'default'
       },
       { 
         id: float1Id, 
@@ -62,7 +83,8 @@ const createDefaultPlanData = (name = 'Default Sitemap', isDemo = false) => {
         parentId: null, 
         order: 0,
         sectionTitle: 'Landing Page Section',
-        sectionDescription: 'Independent promotional section.'
+        sectionDescription: 'Independent promotional section.',
+        pageColor: 'default'
       },
       { 
         id: floatChild1Id, 
@@ -71,7 +93,8 @@ const createDefaultPlanData = (name = 'Default Sitemap', isDemo = false) => {
         parentId: float1Id, 
         order: 0,
         sectionTitle: '',
-        sectionDescription: ''
+        sectionDescription: '',
+        pageColor: 'default'
       }
     ],
     blocks: {
@@ -107,11 +130,7 @@ export const useStore = create(
 
         _saveSnapshot: () => {
           const state = get();
-          const snapshot = {
-            pages: JSON.parse(JSON.stringify(state.pages || [])),
-            blocks: JSON.parse(JSON.stringify(state.blocks || {})),
-            attachments: JSON.parse(JSON.stringify(state.attachments || {}))
-          };
+          const snapshot = planSnapshot(state);
           const currentPast = Array.isArray(state.past) ? state.past : [];
           set({
             past: [...currentPast.slice(-20), snapshot],
@@ -126,11 +145,7 @@ export const useStore = create(
           const previous = newPast.pop();
           if (!previous) return state;
 
-          const currentSnapshot = {
-            pages: JSON.parse(JSON.stringify(state.pages || [])),
-            blocks: JSON.parse(JSON.stringify(state.blocks || {})),
-            attachments: JSON.parse(JSON.stringify(state.attachments || {}))
-          };
+          const currentSnapshot = planSnapshot(state);
 
           const activeId = state.activePlanId;
           const newPlans = (state.plans || []).map(plan => {
@@ -140,6 +155,9 @@ export const useStore = create(
                 pages: previous.pages || [],
                 blocks: previous.blocks || {},
                 attachments: previous.attachments || {},
+                sitemapSettings: previous.sitemapSettings,
+                sitemapSnapshot: previous.sitemapSnapshot || [],
+                lastSitemapRefresh: previous.lastSitemapRefresh,
                 updatedAt: Date.now()
               };
             }
@@ -163,11 +181,7 @@ export const useStore = create(
           const next = newFuture.shift();
           if (!next) return state;
 
-          const currentSnapshot = {
-            pages: JSON.parse(JSON.stringify(state.pages || [])),
-            blocks: JSON.parse(JSON.stringify(state.blocks || {})),
-            attachments: JSON.parse(JSON.stringify(state.attachments || {}))
-          };
+          const currentSnapshot = planSnapshot(state);
 
           const activeId = state.activePlanId;
           const newPlans = (state.plans || []).map(plan => {
@@ -177,6 +191,9 @@ export const useStore = create(
                 pages: next.pages || [],
                 blocks: next.blocks || {},
                 attachments: next.attachments || {},
+                sitemapSettings: next.sitemapSettings,
+                sitemapSnapshot: next.sitemapSnapshot || [],
+                lastSitemapRefresh: next.lastSitemapRefresh,
                 updatedAt: Date.now()
               };
             }
@@ -230,6 +247,140 @@ export const useStore = create(
           };
         }),
 
+        createPlanFromSitemap: ({ name, sourceUrl, domain, pages: pageDrafts, sitemapSettings }) => set((state) => {
+          const idByKey = new Map();
+          pageDrafts.forEach((page, index) => {
+            idByKey.set(page.key, index === 0 ? 'root' : uuidv4());
+          });
+          const siblingOrders = new Map();
+          const pages = pageDrafts.map((page) => {
+            const parentId = page.parentKey ? (idByKey.get(page.parentKey) || 'root') : null;
+            const order = siblingOrders.get(parentId) || 0;
+            siblingOrders.set(parentId, order + 1);
+            return {
+              id: idByKey.get(page.key),
+              title: page.title,
+              description: page.description || '',
+              url: page.url || '',
+              sitemapKey: page.key,
+              pageOrigin: page.isPlaceholder ? 'placeholder' : 'sitemap',
+              isPlaceholder: Boolean(page.isPlaceholder),
+              parentId,
+              order,
+              sectionTitle: '',
+              sectionDescription: '',
+              pageColor: 'default'
+            };
+          });
+          const newPlan = {
+            id: uuidv4(),
+            name: name || 'Imported Sitemap',
+            isDemo: false,
+            sourceUrl: sourceUrl || '',
+            domain: domain || '',
+            sitemapSettings: sitemapSettings || null,
+            sitemapSnapshot: pageDrafts.map(page => ({ key: page.key, parentKey: page.parentKey || null })),
+            lastSitemapRefresh: Date.now(),
+            updatedAt: Date.now(),
+            pages,
+            blocks: {},
+            attachments: {}
+          };
+          return {
+            plans: [...state.plans, newPlan],
+            activePlanId: newPlan.id,
+            pages,
+            blocks: {},
+            attachments: {},
+            past: [],
+            future: []
+          };
+        }),
+
+        refreshPlanFromSitemap: ({ pages: pageDrafts, sitemapSettings, sitemapAllKeys = [], applyMode = 'match' }) => {
+          const state = get();
+          state._saveSnapshot();
+          state._updateActivePlan((plan) => {
+            const currentPages = plan.pages || [];
+            const existingByKey = new Map(
+              currentPages.map(page => [storedSitemapKey(page), page]).filter(([key]) => key)
+            );
+            const availableSitemapKeys = new Set(sitemapAllKeys);
+            const idByKey = new Map();
+            pageDrafts.forEach((draft, index) => {
+              const existing = existingByKey.get(draft.key);
+              idByKey.set(draft.key, existing?.id || (index === 0 ? 'root' : uuidv4()));
+            });
+
+            const untouchedPages = currentPages.filter(page => !storedSitemapKey(page));
+            const missingPages = currentPages.filter(page => {
+              const key = storedSitemapKey(page);
+              return key && !page.isPlaceholder && !availableSitemapKeys.has(key);
+            });
+            const addedPages = [];
+            const siblingOrders = new Map();
+
+            pageDrafts.forEach(draft => {
+              if (existingByKey.has(draft.key)) return;
+              const parentId = applyMode === 'orphans'
+                ? null
+                : (draft.parentKey ? (idByKey.get(draft.parentKey) || 'root') : null);
+              const order = siblingOrders.get(parentId) || 0;
+              siblingOrders.set(parentId, order + 1);
+              addedPages.push({
+                id: idByKey.get(draft.key),
+                title: draft.title,
+                description: draft.description || '',
+                url: draft.url || '',
+                sitemapKey: draft.key,
+                pageOrigin: draft.isPlaceholder ? 'placeholder' : 'sitemap',
+                isPlaceholder: Boolean(draft.isPlaceholder),
+                parentId,
+                order,
+                sectionTitle: '',
+                sectionDescription: '',
+                pageColor: 'default'
+              });
+            });
+
+            let pages;
+            if (applyMode === 'orphans') {
+              pages = [...currentPages, ...addedPages];
+            } else {
+              const refreshedExisting = pageDrafts
+                .filter(draft => existingByKey.has(draft.key))
+                .map(draft => {
+                  const existing = existingByKey.get(draft.key);
+                  const parentId = draft.parentKey ? (idByKey.get(draft.parentKey) || 'root') : null;
+                  const order = siblingOrders.get(parentId) || 0;
+                  siblingOrders.set(parentId, order + 1);
+                  return {
+                    ...existing,
+                    ...(existing.isPlaceholder && !draft.isPlaceholder
+                      ? { title: draft.title, pageOrigin: 'sitemap', isPlaceholder: false }
+                      : {}),
+                    parentId,
+                    order
+                  };
+                });
+              // Pages no longer listed are preserved as orphans so work is never lost.
+              pages = [
+                ...refreshedExisting,
+                ...addedPages,
+                ...missingPages.map(page => ({ ...page, parentId: null })),
+                ...untouchedPages
+              ];
+            }
+
+            return {
+              pages,
+              sitemapSettings,
+              sitemapSnapshot: pageDrafts.map(page => ({ key: page.key, parentKey: page.parentKey || null })),
+              lastSitemapRefresh: Date.now()
+            };
+          });
+        },
+
         switchPlan: (planId) => set((state) => {
           // If switching to demo plan, reset demo plan to fresh state so it's unsaved/transient
           let currentPlans = state.plans;
@@ -282,14 +433,16 @@ export const useStore = create(
 
           const newPageId = uuidv4();
           state._updateActivePlan((plan) => ({
-            pages: [...(plan.pages || []), { 
+              pages: [...(plan.pages || []), {
               id: newPageId, 
               title, 
               description: '', 
               parentId, 
               order: maxOrder + 1,
               sectionTitle: '',
-              sectionDescription: ''
+              sectionDescription: '',
+              pageOrigin: 'manual',
+              pageColor: 'default'
             }]
           }));
           return newPageId;
@@ -322,7 +475,9 @@ export const useStore = create(
                 parentId,
                 order: newOrder,
                 sectionTitle: '',
-                sectionDescription: ''
+                sectionDescription: '',
+                pageOrigin: 'manual',
+                pageColor: 'default'
               }
             ]
           }));
@@ -345,7 +500,9 @@ export const useStore = create(
               parentId: null,
               order: maxOrder + 1,
               sectionTitle: title + ' Section',
-              sectionDescription: 'Independent group.'
+              sectionDescription: 'Independent group.',
+              pageOrigin: 'manual',
+              pageColor: 'default'
             }]
           }));
           return newPageId;
@@ -354,6 +511,18 @@ export const useStore = create(
         updatePage: (id, updates) => {
           get()._updateActivePlan((plan) => ({
             pages: (plan.pages || []).map(p => p.id === id ? { ...p, ...updates } : p)
+          }));
+        },
+
+        setPageColor: (id, pageColor) => {
+          const allowedColors = new Set(['default', 'blue', 'yellow', 'pink']);
+          const state = get();
+          const page = (state.pages || []).find(item => item.id === id);
+          const nextColor = allowedColors.has(pageColor) ? pageColor : 'default';
+          if (!page || (page.pageColor || 'default') === nextColor) return;
+          state._saveSnapshot();
+          state._updateActivePlan((plan) => ({
+            pages: (plan.pages || []).map(item => item.id === id ? { ...item, pageColor: nextColor } : item)
           }));
         },
 
@@ -619,9 +788,12 @@ export const useStore = create(
           return;
         }
 
-        const currentPlan = state.plans.find(p => p.id === state.activePlanId) || state.plans[0];
+        // Remove the short-lived, hardcoded Chase Oaks starter plan from earlier builds.
+        const plans = state.plans.filter(plan => plan.id !== 'chase-oaks-sitemap-v1');
+        const currentPlan = plans.find(p => p.id === state.activePlanId) || plans[0];
         if (currentPlan) {
           useStore.setState({
+            plans,
             activePlanId: currentPlan.id,
             pages: currentPlan.pages || [],
             blocks: currentPlan.blocks || {},

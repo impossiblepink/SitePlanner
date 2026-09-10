@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { Edit3, ChevronRight, ChevronDown, Plus, PlusCircle, Trash2, GripVertical, Unlink, Layers, FolderMinus, FolderPlus } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal/ConfirmModal';
+import { pageColorFor } from '../../utils/pageColors';
 
 const buildTree = (pages = [], parentId = null, visited = new Set()) => {
   if (!Array.isArray(pages)) return [];
@@ -41,6 +42,7 @@ function PageListItem({
 
   const childrenList = Array.isArray(page.children) ? page.children : [];
   const hasChildren = childrenList.length > 0;
+  const pageColors = pageColorFor(page.pageColor);
 
   const handleDragEnter = (e) => {
     e.preventDefault();
@@ -87,7 +89,9 @@ function PageListItem({
     setDropPosition(null);
   };
 
-  let borderStyle = '1px solid var(--border-color)';
+  let borderStyle = pageColors.border
+    ? `2px solid ${pageColors.border}`
+    : '1px solid var(--border-color)';
   let bgStyle = 'var(--bg-surface)';
 
   if (dropPosition === 'child') {
@@ -155,7 +159,7 @@ function PageListItem({
         </button>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontWeight: 500, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>{page.title || 'Untitled Page'}</span>
+          <span style={{ fontWeight: 500, fontSize: '0.9375rem', color: pageColors.title }}>{page.title || 'Untitled Page'}</span>
           {page.description && (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {page.description.length > 65 ? page.description.substring(0, 65) + '...' : page.description}

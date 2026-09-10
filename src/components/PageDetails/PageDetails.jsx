@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
-import { X, Plus, Trash2, Image as ImageIcon, Layout as LayoutIcon, FileText, ArrowLeft } from 'lucide-react';
+import { X, Plus, Trash2, Image as ImageIcon, Layout as LayoutIcon, FileText, ArrowLeft, Check } from 'lucide-react';
+import { PAGE_COLORS } from '../../utils/pageColors';
 
 export default function PageDetails({ pageId, onClose }) {
   const [activeTab, setActiveTab] = useState('details'); // 'details', 'blocks', 'attachments'
@@ -8,6 +9,7 @@ export default function PageDetails({ pageId, onClose }) {
   const pages = useStore(state => state.pages);
   const page = pages.find(p => p.id === pageId);
   const updatePage = useStore(state => state.updatePage);
+  const setPageColor = useStore(state => state.setPageColor);
   
   const blocksMap = useStore(state => state.blocks);
   const blocks = (pageId && blocksMap && blocksMap[pageId]) || [];
@@ -112,6 +114,36 @@ export default function PageDetails({ pageId, onClose }) {
                 value={page.title || ''}
                 onChange={(e) => updatePage(page.id, { title: e.target.value })}
               />
+              <div
+                role="radiogroup"
+                aria-label="Page color"
+                style={{ display: 'flex', gap: '10px', marginTop: '10px' }}
+              >
+                {Object.entries(PAGE_COLORS).map(([name, colors]) => {
+                  const selected = (page.pageColor || 'default') === name;
+                  const label = name.charAt(0).toUpperCase() + name.slice(1);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={label}
+                      title={label}
+                      onClick={() => setPageColor(page.id, name)}
+                      style={{
+                        width: '28px', height: '28px', borderRadius: '6px',
+                        backgroundColor: colors.title,
+                        border: selected ? '2px solid white' : '2px solid transparent',
+                        boxShadow: selected ? '0 0 0 2px var(--primary-color)' : '0 0 0 1px var(--border-color)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      {selected && <Check size={17} strokeWidth={3} color={name === 'default' || name === 'yellow' ? '#0f172a' : 'white'} />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Description</label>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Edit3, Plus, PlusCircle, ChevronDown, ChevronRight, FolderMinus, FolderPlus } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { pageColorFor } from '../../utils/pageColors';
 
 export default function PageNode({ id, data }) {
   const updatePage = useStore((state) => state.updatePage);
@@ -57,9 +58,10 @@ export default function PageNode({ id, data }) {
     }
   };
 
+  const pageColors = pageColorFor(data.pageColor);
   const borderStyle = data.isDragTarget
     ? '3px dashed var(--primary-color)'
-    : '2px solid var(--border-color)';
+    : `2px solid ${pageColors.border || 'var(--border-color)'}`;
 
   const bgStyle = data.isDragTarget
     ? 'var(--bg-surface-hover)'
@@ -112,7 +114,7 @@ export default function PageNode({ id, data }) {
             style={{
               fontSize: '1rem',
               fontWeight: 600,
-              color: 'var(--text-primary)',
+              color: pageColors.title,
               background: 'var(--bg-color)',
               border: '1px solid var(--primary-color)',
               borderRadius: 'var(--radius-md)',
@@ -132,7 +134,7 @@ export default function PageNode({ id, data }) {
               margin: 0, 
               fontSize: '1rem', 
               fontWeight: 600, 
-              color: 'var(--text-primary)', 
+              color: pageColors.title,
               wordBreak: 'break-word',
               flex: 1,
               cursor: 'pointer'
