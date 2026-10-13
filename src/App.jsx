@@ -1,17 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { Download, Upload, LayoutTemplate, ListTree, FolderKanban, Plus, AlertTriangle, Printer, HelpCircle, Undo2, Redo2, ChevronDown, FilePlus2, Network, RefreshCw } from 'lucide-react';
+import { Download, Upload, LayoutTemplate, ListTree, FolderKanban, Plus, AlertTriangle, HelpCircle, Undo2, Redo2, ChevronDown, FilePlus2, Network, RefreshCw } from 'lucide-react';
 import FlowView from './components/FlowView/FlowView';
 import ListView from './components/ListView/ListView';
 import PageDetails from './components/PageDetails/PageDetails';
 import ConfirmModal from './components/ConfirmModal/ConfirmModal';
 import PlanSelectorModal from './components/PlanSelectorModal/PlanSelectorModal';
-import PrintModal from './components/PrintModal/PrintModal';
-import PrintView from './components/PrintView/PrintView';
 import WelcomeModal from './components/WelcomeModal/WelcomeModal';
 import TutorialModal from './components/TutorialModal/TutorialModal';
 import SitemapImportModal from './components/SitemapImportModal/SitemapImportModal';
 import SitemapRefreshModal from './components/SitemapRefreshModal/SitemapRefreshModal';
-import SharedPlanBar from './components/SharedPlanBar/SharedPlanBar';
+import SharedPlanBar, { SharedPlanStatus } from './components/SharedPlanBar/SharedPlanBar';
 import { useStore } from './store/useStore';
 import { isSharedStorageConfigured, supabase } from './lib/supabase';
 import { fetchSharedPlan, publishSharedPlan } from './utils/sharedPlan';
@@ -25,10 +23,6 @@ function App() {
   
   const [planToDelete, setPlanToDelete] = useState(null);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [printViewStyle, setPrintViewStyle] = useState('list');
-  const [includeBlocks, setIncludeBlocks] = useState(true);
 
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [isTutorialModalOpen, setIsTutorialModalOpen] = useState(false);
@@ -152,19 +146,9 @@ function App() {
     setIsWelcomeModalOpen(false);
   };
 
-  // Keep printViewStyle in sync with active screen view when opened
-  const handleOpenPrintModal = () => {
-    setPrintViewStyle(view);
-    setIsPrintModalOpen(true);
-  };
-
-  // Keyboard shortcut listener for Cmd+P (Print) and Cmd+Z / Cmd+Shift+Z (Undo/Redo)
+  // Keyboard shortcut listener for Cmd+Z / Cmd+Shift+Z (Undo/Redo)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
-        e.preventDefault();
-        handleOpenPrintModal();
-      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
           e.preventDefault();
@@ -181,7 +165,7 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, undo, redo]);
+  }, [undo, redo]);
 
   const openEditDetails = (pageId) => {
     if (isSharedReadOnly) return;
@@ -231,15 +215,16 @@ function App() {
     <>
       <div className="app-container no-print" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         {/* Navbar */}
-      <nav style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
+      <nav style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
         padding: '10px 24px',
         backgroundColor: 'var(--bg-surface)',
         borderBottom: '1px solid var(--border-color)',
         zIndex: 10
       }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         {/* Left Section: Logo & Plan Manager */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--primary-color)', letterSpacing: '-0.02em' }}>
@@ -247,16 +232,6 @@ function App() {
           </h1>
 
           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }}></div>
-          <SharedPlanBar
-            configured={isSharedStorageConfigured}
-            user={sharedUser}
-            canEdit={canEditShared}
-            status={sharedStatus}
-            updatedAt={sharedUpdatedAt}
-            onPublish={handlePublishShared}
-            publishing={isPublishingShared}
-          />
-          
           {/* Multi-Plan Selector Button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button 
@@ -430,15 +405,6 @@ function App() {
             <span style={{ fontSize: '0.875rem' }}>Export</span>
           </button>
           
-          <button 
-            onClick={handleOpenPrintModal}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}
-            title="Print Current View (Cmd/Ctrl + P)"
-          >
-            <Printer size={18} />
-            <span style={{ fontSize: '0.875rem' }}>Print</span>
-          </button>
-
           {/* Undo / Redo Buttons */}
           {!isSharedReadOnly && <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
@@ -475,7 +441,24 @@ function App() {
             <HelpCircle size={20} />
           </button>
 
+          <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }}></div>
+
+          <SharedPlanBar
+            configured={isSharedStorageConfigured}
+            user={sharedUser}
+            canEdit={canEditShared}
+            onPublish={handlePublishShared}
+            publishing={isPublishingShared}
+          />
+
         </div>
+        </div>
+        <SharedPlanStatus
+          configured={isSharedStorageConfigured}
+          canEdit={canEditShared}
+          status={sharedStatus}
+          updatedAt={sharedUpdatedAt}
+        />
       </nav>
 
       {/* Main Content Area */}
@@ -546,13 +529,6 @@ function App() {
           onClose={() => setIsPlanModalOpen(false)}
         />
 
-        <PrintModal
-          isOpen={isPrintModalOpen}
-          onClose={() => setIsPrintModalOpen(false)}
-          includeBlocks={includeBlocks}
-          setIncludeBlocks={setIncludeBlocks}
-        />
-
         <WelcomeModal
           isOpen={isWelcomeModalOpen}
           onClose={handleCloseWelcome}
@@ -584,10 +560,6 @@ function App() {
       </main>
     </div>
 
-    {/* Dedicated Printable Area (only visible during window.print()) */}
-    <PrintView
-      includeBlocks={includeBlocks}
-    />
   </>
   );
 }

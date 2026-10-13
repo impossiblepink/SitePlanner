@@ -48,7 +48,24 @@ function OwnerLogin({ onClose }) {
   );
 }
 
-export default function SharedPlanBar({ configured, user, canEdit, status, updatedAt, onPublish, publishing }) {
+export function SharedPlanStatus({ configured, canEdit, status, updatedAt }) {
+  if (!configured) return null;
+
+  return (
+    <div style={{ alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-secondary)', fontSize: '0.68rem', lineHeight: 1 }}>
+      <Cloud size={12} style={{ color: status === 'error' ? '#fda4af' : 'var(--primary-color)' }} />
+      <span>
+        {status === 'loading' && 'Loading shared sitemap…'}
+        {status === 'error' && 'Shared sitemap unavailable'}
+        {status === 'empty' && 'No shared sitemap published yet'}
+        {status === 'ready' && (canEdit ? 'Owner mode' : 'Public view')}
+        {updatedAt && status === 'ready' && ` · updated ${new Date(updatedAt).toLocaleString()}`}
+      </span>
+    </div>
+  );
+}
+
+export default function SharedPlanBar({ configured, user, canEdit, onPublish, publishing }) {
   const [loginOpen, setLoginOpen] = useState(false);
 
   if (!configured) return null;
@@ -57,15 +74,7 @@ export default function SharedPlanBar({ configured, user, canEdit, status, updat
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-color)', color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
-        <Cloud size={15} style={{ color: status === 'error' ? '#fda4af' : 'var(--primary-color)' }} />
-        <span>
-          {status === 'loading' && 'Loading shared sitemap…'}
-          {status === 'error' && 'Shared sitemap unavailable'}
-          {status === 'empty' && 'No shared sitemap published yet'}
-          {status === 'ready' && (canEdit ? 'Owner mode' : 'Public view')}
-          {updatedAt && status === 'ready' && ` · updated ${new Date(updatedAt).toLocaleString()}`}
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
         {canEdit ? (
           <>
             <button onClick={onPublish} disabled={publishing} style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--primary-color)', fontWeight: 700 }}>
@@ -75,12 +84,12 @@ export default function SharedPlanBar({ configured, user, canEdit, status, updat
           </>
         ) : user ? (
           <>
-            <span>Signed in without owner access</span>
+            <span style={{ fontSize: '0.75rem' }}>No owner access</span>
             <button onClick={signOut} title="Sign out" aria-label="Sign out" style={{ color: 'var(--text-secondary)' }}><LogOut size={15} /></button>
           </>
         ) : (
           <button onClick={() => setLoginOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--primary-color)', fontWeight: 700 }}>
-            <LogIn size={15} /> Owner sign in
+            <LogIn size={17} /> Sign in
           </button>
         )}
       </div>
