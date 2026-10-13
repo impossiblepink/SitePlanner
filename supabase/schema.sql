@@ -11,6 +11,13 @@ create table if not exists public.shared_plans (
 
 alter table public.shared_plans enable row level security;
 
+-- The project can keep "Automatically expose new tables" disabled. Grant only
+-- the minimum Data API privileges this application needs; RLS policies below
+-- still decide which rows each role may access.
+revoke all on table public.shared_plans from anon, authenticated;
+grant select on table public.shared_plans to anon, authenticated;
+grant insert, update on table public.shared_plans to authenticated;
+
 drop policy if exists "Shared plans are publicly readable" on public.shared_plans;
 create policy "Shared plans are publicly readable"
   on public.shared_plans for select
