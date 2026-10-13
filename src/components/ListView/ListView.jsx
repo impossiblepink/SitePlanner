@@ -24,7 +24,7 @@ function PageListItem({
   page, 
   depth = 0, 
   onEditNode, 
-  isExpanded, 
+  expandedNodes,
   toggleExpand, 
   onDragStart, 
   onDrop, 
@@ -43,6 +43,7 @@ function PageListItem({
 
   const childrenList = Array.isArray(page.children) ? page.children : [];
   const hasChildren = childrenList.length > 0;
+  const isExpanded = expandedNodes[page.id] !== false;
   const pageColors = pageColorFor(page.pageColor);
 
   const handleDragEnter = (e) => {
@@ -154,6 +155,8 @@ function PageListItem({
 
         <button 
           onClick={() => toggleExpand(page.id)}
+          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${page.title || 'page'}`}
+          title={`${isExpanded ? 'Collapse' : 'Expand'} child pages`}
           style={{ visibility: hasChildren ? 'visible' : 'hidden', padding: '2px', display: 'flex', color: 'var(--text-secondary)' }}
         >
           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -230,7 +233,7 @@ function PageListItem({
               page={child} 
               depth={depth + 1} 
               onEditNode={onEditNode}
-              isExpanded={isExpanded}
+              expandedNodes={expandedNodes}
               toggleExpand={toggleExpand}
               onDragStart={onDragStart}
               onDrop={onDrop}
@@ -302,6 +305,16 @@ export default function ListView({ onEditNode, readOnly = false }) {
   const floatingRoots = safePages
     .filter(p => p && p.parentId === null && p.id !== 'root')
     .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const expandablePageIds = [...new Set(safePages.map(page => page?.parentId).filter(Boolean))];
+  const allParentsExpanded = expandablePageIds.every(id => expandedNodes[id] !== false);
+
+  const toggleAllParents = () => {
+    setExpandedNodes(previous => {
+      const next = { ...previous };
+      expandablePageIds.forEach(id => { next[id] = !allParentsExpanded; });
+      return next;
+    });
+  };
 
   return (
     <div style={{ maxWidth: '850px', margin: '0 auto', padding: '32px 0 64px 0' }}>
@@ -320,13 +333,8 @@ export default function ListView({ onEditNode, readOnly = false }) {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            {!readOnly && <button
-              onClick={() => {
-                const allExpanded = Object.values(expandedNodes).every(v => v === true);
-                const nextState = {};
-                (pages || []).forEach(p => { if (p && p.id) nextState[p.id] = !allExpanded; });
-                setExpandedNodes(nextState);
-              }}
+            <button
+              onClick={toggleAllParents}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
                 padding: '8px 14px',
@@ -339,12 +347,12 @@ export default function ListView({ onEditNode, readOnly = false }) {
               }}
               title="Toggle Expand/Collapse All Sections"
             >
-              {Object.values(expandedNodes).every(v => v === true) ? (
+              {allParentsExpanded ? (
                 <><FolderMinus size={16} /> Collapse All</>
               ) : (
                 <><FolderPlus size={16} /> Expand All</>
               )}
-            </button>}
+            </button>
 
             {!readOnly && <button
               onClick={addDisconnectedPage}
@@ -372,7 +380,7 @@ export default function ListView({ onEditNode, readOnly = false }) {
               page={rootNode} 
               depth={0} 
               onEditNode={onEditNode}
-              isExpanded={expandedNodes[rootNode.id] !== false}
+              expandedNodes={expandedNodes}
               toggleExpand={toggleExpand}
               onDragStart={handleDragStart}
               onDrop={handleDropOnPage}
@@ -497,7 +505,7 @@ export default function ListView({ onEditNode, readOnly = false }) {
                     page={fpTree}
                     depth={0}
                     onEditNode={onEditNode}
-                    isExpanded={expandedNodes[fp.id] !== false}
+                    expandedNodes={expandedNodes}
                     toggleExpand={toggleExpand}
                     onDragStart={handleDragStart}
                     onDrop={handleDropOnPage}
