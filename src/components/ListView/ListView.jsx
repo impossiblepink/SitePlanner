@@ -171,6 +171,28 @@ function PageListItem({
           )}
         </div>
 
+        {hasChildren && (
+          <button
+            onClick={() => toggleExpand(page.id)}
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${page.title || 'page'}`}
+            title={`${isExpanded ? 'Collapse' : 'Expand'} child pages`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '5px 8px',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-secondary)',
+              fontSize: '0.75rem',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
+        )}
+
         {!readOnly && <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           <button 
             onClick={() => addPage(page.id)}
