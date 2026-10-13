@@ -83,7 +83,7 @@ const getLayoutedElements = (nodes, edges) => {
   return { nodes: [...layoutedConnectedNodes, ...layoutedFloatingNodes], edges };
 };
 
-function FlowCanvas({ onEditNode }) {
+function FlowCanvas({ onEditNode, readOnly = false }) {
   const pages = useStore(state => state.pages);
   const blocksMap = useStore(state => state.blocks);
   const collapsedNodes = useStore(state => state.collapsedNodes || {});
@@ -159,12 +159,14 @@ function FlowCanvas({ onEditNode }) {
           pageColor: page.pageColor || 'default',
           childCount,
           isDragTarget: page.id === dragTargetNodeId,
+          readOnly,
           onEdit: onEditNode,
           onPageAdded: (newId) => {
             newlyCreatedPageIdRef.current = newId;
           }
         },
         position: { x: 0, y: 0 },
+        draggable: !readOnly,
       };
     });
 
@@ -229,10 +231,11 @@ function FlowCanvas({ onEditNode }) {
         }, 50);
       }
     }
-  }, [pages, blocksMap, collapsedNodes, dragTargetNodeId, setNodes, setEdges, onEditNode, fitView, setCenter]);
+  }, [pages, blocksMap, collapsedNodes, dragTargetNodeId, readOnly, setNodes, setEdges, onEditNode, fitView, setCenter]);
 
   const onNodeDrag = useCallback(
     (event, node) => {
+      if (readOnly) return;
       const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id);
       if (intersections.length > 0) {
         setDragTargetNodeId(intersections[0].id);
@@ -240,11 +243,12 @@ function FlowCanvas({ onEditNode }) {
         setDragTargetNodeId(null);
       }
     },
-    [getIntersectingNodes]
+    [getIntersectingNodes, readOnly]
   );
 
   const onNodeDragStop = useCallback(
     (event, node) => {
+      if (readOnly) return;
       const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id);
       
       if (intersections.length > 0) {
@@ -257,7 +261,7 @@ function FlowCanvas({ onEditNode }) {
       }
       setDragTargetNodeId(null);
     },
-    [getIntersectingNodes, reparentPage]
+    [getIntersectingNodes, readOnly, reparentPage]
   );
 
   return (
@@ -285,7 +289,7 @@ function FlowCanvas({ onEditNode }) {
         style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-md)' }}
       />
 
-      <Panel position="top-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      {!readOnly && <Panel position="top-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         <button
           onClick={() => {
             const parentId = selectedNode || 'root';
@@ -362,7 +366,7 @@ function FlowCanvas({ onEditNode }) {
             Delete Selected
           </button>
         )}
-      </Panel>
+      </Panel>}
 
       <ConfirmModal
         isOpen={!!pageToDelete}
@@ -382,11 +386,11 @@ function FlowCanvas({ onEditNode }) {
   );
 }
 
-export default function FlowView({ onEditNode }) {
+export default function FlowView({ onEditNode, readOnly = false }) {
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
-        <FlowCanvas onEditNode={onEditNode} />
+        <FlowCanvas onEditNode={onEditNode} readOnly={readOnly} />
       </ReactFlowProvider>
     </div>
   );

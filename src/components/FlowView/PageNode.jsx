@@ -127,9 +127,10 @@ export default function PageNode({ id, data }) {
           <h3 
             onClick={(e) => {
               e.stopPropagation();
+              if (data.readOnly) return;
               setIsEditingTitle(true);
             }}
-            title="Click to edit title"
+            title={data.readOnly ? undefined : 'Click to edit title'}
             style={{ 
               margin: 0, 
               fontSize: '1rem', 
@@ -137,7 +138,7 @@ export default function PageNode({ id, data }) {
               color: pageColors.title,
               wordBreak: 'break-word',
               flex: 1,
-              cursor: 'pointer'
+              cursor: data.readOnly ? 'default' : 'pointer'
             }}
           >
             {data.title}
@@ -146,7 +147,7 @@ export default function PageNode({ id, data }) {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {/* Edit Details Pencil Button */}
-          <button 
+        {!data.readOnly && <button
             onClick={(e) => {
               e.stopPropagation();
               data.onEdit(id);
@@ -162,7 +163,7 @@ export default function PageNode({ id, data }) {
             title="Edit Full Details (Blocks & Images)"
           >
             <Edit3 size={15} />
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -202,9 +203,10 @@ export default function PageNode({ id, data }) {
         <p 
           onClick={(e) => {
             e.stopPropagation();
+            if (data.readOnly) return;
             setIsEditingDesc(true);
           }}
-          title="Click to edit description"
+          title={data.readOnly ? undefined : 'Click to edit description'}
           style={{ 
             margin: 0, 
             fontSize: '0.8125rem', 
@@ -213,7 +215,7 @@ export default function PageNode({ id, data }) {
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
-            cursor: 'pointer',
+            cursor: data.readOnly ? 'default' : 'pointer',
             minHeight: '20px'
           }}
         >

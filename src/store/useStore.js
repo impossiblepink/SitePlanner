@@ -127,9 +127,38 @@ export const useStore = create(
         past: [],
         future: [],
         collapsedNodes: {},
+        canEditShared: false,
+
+        setSharedEditor: (canEditShared) => set({ canEditShared: Boolean(canEditShared) }),
+
+        loadSharedPlan: (incomingPlan) => set((state) => {
+          if (!incomingPlan || !Array.isArray(incomingPlan.pages)) return state;
+          const sharedPlan = {
+            ...incomingPlan,
+            id: 'shared-public',
+            name: incomingPlan.name || 'Shared Sitemap',
+            isDemo: false,
+            isShared: true,
+            blocks: incomingPlan.blocks || {},
+            attachments: incomingPlan.attachments || {},
+          };
+          const plans = [sharedPlan, ...(state.plans || []).filter(plan => plan.id !== sharedPlan.id)];
+          return {
+            plans,
+            activePlanId: sharedPlan.id,
+            pages: sharedPlan.pages,
+            blocks: sharedPlan.blocks,
+            attachments: sharedPlan.attachments,
+            past: [],
+            future: [],
+            collapsedNodes: {},
+          };
+        }),
 
         _saveSnapshot: () => {
           const state = get();
+          const activePlan = state.plans.find(plan => plan.id === state.activePlanId);
+          if (activePlan?.isShared && !state.canEditShared) return;
           const snapshot = planSnapshot(state);
           const currentPast = Array.isArray(state.past) ? state.past : [];
           set({
@@ -139,6 +168,8 @@ export const useStore = create(
         },
 
         undo: () => set((state) => {
+          const activePlan = state.plans.find(plan => plan.id === state.activePlanId);
+          if (activePlan?.isShared && !state.canEditShared) return state;
           const pastStack = Array.isArray(state.past) ? state.past : [];
           if (pastStack.length === 0) return state;
           const newPast = [...pastStack];
@@ -175,6 +206,8 @@ export const useStore = create(
         }),
 
         redo: () => set((state) => {
+          const activePlan = state.plans.find(plan => plan.id === state.activePlanId);
+          if (activePlan?.isShared && !state.canEditShared) return state;
           const futureStack = Array.isArray(state.future) ? state.future : [];
           if (futureStack.length === 0) return state;
           const newFuture = [...futureStack];
@@ -219,6 +252,8 @@ export const useStore = create(
 
         _updateActivePlan: (updater) => set((state) => {
           const activeId = state.activePlanId;
+          const activePlan = state.plans.find(plan => plan.id === activeId);
+          if (activePlan?.isShared && !state.canEditShared) return state;
           const newPlans = state.plans.map(plan => {
             if (plan.id === activeId) {
               const updatedFields = typeof updater === 'function' ? updater(plan) : updater;
@@ -402,6 +437,7 @@ export const useStore = create(
         renamePlan: (planId, newName) => set((state) => {
           const target = state.plans.find(p => p.id === planId);
           if (target && target.isDemo) return state; // Don't rename demo plan
+          if (target?.isShared && !state.canEditShared) return state;
           return {
             plans: state.plans.map(p => p.id === planId ? { ...p, name: newName.trim() || p.name } : p)
           };
@@ -410,6 +446,7 @@ export const useStore = create(
         deletePlan: (planId) => set((state) => {
           const target = state.plans.find(p => p.id === planId);
           if (target && target.isDemo) return state; // Don't delete demo plan
+          if (target?.isShared && !state.canEditShared) return state;
           if (state.plans.length <= 1) return state;
 
           const newPlans = state.plans.filter(p => p.id !== planId);

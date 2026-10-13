@@ -29,7 +29,8 @@ function PageListItem({
   onDragStart, 
   onDrop, 
   draggedPageId,
-  onDeleteNode
+  onDeleteNode,
+  readOnly = false
 }) {
   const addPage = useStore(state => state.addPage);
   const addSiblingPage = useStore(state => state.addSiblingPage);
@@ -129,7 +130,7 @@ function PageListItem({
       </div>
 
       <div 
-        draggable={page.id !== 'root'}
+        draggable={!readOnly && page.id !== 'root'}
         onDragStart={(e) => onDragStart(e, page.id)}
         style={{
           position: 'relative',
@@ -142,14 +143,14 @@ function PageListItem({
           border: borderStyle,
           marginLeft: `${depth * 24}px`,
           gap: '10px',
-          cursor: 'grab',
+          cursor: readOnly ? 'default' : 'grab',
           transition: 'background-color 0.15s ease, border 0.15s ease',
           opacity: draggedPageId === page.id ? 0.4 : 1
         }}
       >
-        <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', cursor: 'grab' }}>
+        {!readOnly && <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', cursor: 'grab' }}>
           <GripVertical size={16} />
-        </div>
+        </div>}
 
         <button 
           onClick={() => toggleExpand(page.id)}
@@ -167,7 +168,7 @@ function PageListItem({
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        {!readOnly && <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           <button 
             onClick={() => addPage(page.id)}
             style={{ padding: '6px', color: 'var(--primary-color)', borderRadius: 'var(--radius-md)' }}
@@ -200,7 +201,7 @@ function PageListItem({
               <Trash2 size={16} />
             </button>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Spacer After */}
@@ -235,6 +236,7 @@ function PageListItem({
               onDrop={onDrop}
               draggedPageId={draggedPageId}
               onDeleteNode={onDeleteNode}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -243,7 +245,7 @@ function PageListItem({
   );
 }
 
-export default function ListView({ onEditNode }) {
+export default function ListView({ onEditNode, readOnly = false }) {
   const pages = useStore(state => state.pages || []);
   const deletePage = useStore(state => state.deletePage);
   const hasDependencies = useStore(state => state.hasDependencies);
@@ -318,7 +320,7 @@ export default function ListView({ onEditNode }) {
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button
+            {!readOnly && <button
               onClick={() => {
                 const allExpanded = Object.values(expandedNodes).every(v => v === true);
                 const nextState = {};
@@ -342,9 +344,9 @@ export default function ListView({ onEditNode }) {
               ) : (
                 <><FolderPlus size={16} /> Expand All</>
               )}
-            </button>
+            </button>}
 
-            <button
+            {!readOnly && <button
               onClick={addDisconnectedPage}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
@@ -359,7 +361,7 @@ export default function ListView({ onEditNode }) {
             >
               <Unlink size={16} />
               Add Floating Section
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -376,6 +378,7 @@ export default function ListView({ onEditNode }) {
               onDrop={handleDropOnPage}
               draggedPageId={draggedPageId}
               onDeleteNode={handleRequestDelete}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -396,7 +399,7 @@ export default function ListView({ onEditNode }) {
         </div>
 
         {/* Global Drop Zone */}
-        <div
+        {!readOnly && <div
           onDragOver={(e) => { e.preventDefault(); setActiveFloatingDropId('global'); }}
           onDragLeave={() => setActiveFloatingDropId(null)}
           onDrop={handleDropOnFloatingArea}
@@ -413,7 +416,7 @@ export default function ListView({ onEditNode }) {
           }}
         >
           Drop page here to disconnect it into a floating section
-        </div>
+        </div>}
 
         {/* Individual Floating Section Panels */}
         {floatingRoots.length === 0 ? (
@@ -451,6 +454,7 @@ export default function ListView({ onEditNode }) {
                       type="text"
                       value={secTitle}
                       onChange={(e) => updatePage(fp.id, { sectionTitle: e.target.value })}
+                      readOnly={readOnly}
                       placeholder="Section Title"
                       style={{
                         fontSize: '1.125rem',
@@ -471,6 +475,7 @@ export default function ListView({ onEditNode }) {
                       type="text"
                       value={secDesc}
                       onChange={(e) => updatePage(fp.id, { sectionDescription: e.target.value })}
+                      readOnly={readOnly}
                       placeholder="Section Description"
                       style={{
                         fontSize: '0.8125rem',
@@ -498,6 +503,7 @@ export default function ListView({ onEditNode }) {
                     onDrop={handleDropOnPage}
                     draggedPageId={draggedPageId}
                     onDeleteNode={handleRequestDelete}
+                    readOnly={readOnly}
                   />
                 </div>
               );

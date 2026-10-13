@@ -11,7 +11,10 @@ import WelcomeModal from './components/WelcomeModal/WelcomeModal';
 import TutorialModal from './components/TutorialModal/TutorialModal';
 import SitemapImportModal from './components/SitemapImportModal/SitemapImportModal';
 import SitemapRefreshModal from './components/SitemapRefreshModal/SitemapRefreshModal';
+import SharedPlanBar from './components/SharedPlanBar/SharedPlanBar';
 import { useStore } from './store/useStore';
+import { isSharedStorageConfigured, supabase } from './lib/supabase';
+import { fetchSharedPlan, publishSharedPlan } from './utils/sharedPlan';
 
 function App() {
   const [view, setView] = useState('flow'); // 'flow' | 'list'
@@ -33,6 +36,11 @@ function App() {
   const [isSitemapImportOpen, setIsSitemapImportOpen] = useState(false);
   const [isSitemapRefreshOpen, setIsSitemapRefreshOpen] = useState(false);
   const newPlanMenuRef = useRef(null);
+  const [sharedStatus, setSharedStatus] = useState(isSharedStorageConfigured ? 'loading' : 'disabled');
+  const [sharedUpdatedAt, setSharedUpdatedAt] = useState(null);
+  const [sharedOwnerId, setSharedOwnerId] = useState(null);
+  const [sharedUser, setSharedUser] = useState(null);
+  const [isPublishingShared, setIsPublishingShared] = useState(false);
 
   const plans = useStore(state => state.plans || []);
   const activePlanId = useStore(state => state.activePlanId);
@@ -49,9 +57,74 @@ function App() {
 
   const exportData = useStore(state => state.exportData);
   const importData = useStore(state => state.importData);
+  const loadSharedPlan = useStore(state => state.loadSharedPlan);
+  const setSharedEditor = useStore(state => state.setSharedEditor);
+  const canEditShared = useStore(state => state.canEditShared);
   const fileInputRef = useRef(null);
 
   const activePlan = plans.find(p => p.id === activePlanId) || plans[0] || {};
+  const isSharedReadOnly = Boolean(activePlan.isShared && !canEditShared);
+
+  useEffect(() => {
+    if (!supabase) return undefined;
+    let cancelled = false;
+
+    const initializeSharedPlan = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled) {
+        const user = data.session?.user || null;
+        setSharedUser(user);
+      }
+      try {
+        const result = await fetchSharedPlan();
+        if (cancelled) return;
+        if (result.plan) {
+          loadSharedPlan(result.plan);
+          setSharedOwnerId(result.ownerId);
+          setSharedUpdatedAt(result.updatedAt);
+          setSharedStatus('ready');
+        } else {
+          setSharedStatus('empty');
+        }
+      } catch (error) {
+        console.error('Failed to load shared sitemap', error);
+        if (!cancelled) setSharedStatus('error');
+      }
+    };
+
+    initializeSharedPlan();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user || null;
+      setSharedUser(user);
+    });
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, [loadSharedPlan]);
+
+  useEffect(() => {
+    const canEdit = Boolean(sharedUser && (sharedStatus === 'empty' || sharedUser.id === sharedOwnerId));
+    setSharedEditor(canEdit);
+  }, [setSharedEditor, sharedOwnerId, sharedStatus, sharedUser]);
+
+  const handlePublishShared = async () => {
+    if (!sharedUser || !canEditShared || !activePlan?.pages) return;
+    setIsPublishingShared(true);
+    try {
+      const sharedPlan = await publishSharedPlan(activePlan, sharedUser.id);
+      loadSharedPlan(sharedPlan);
+      setSharedOwnerId(sharedUser.id);
+      setSharedUpdatedAt(new Date().toISOString());
+      setSharedStatus('ready');
+    } catch (error) {
+      console.error('Failed to publish shared sitemap', error);
+      window.alert(`The shared sitemap could not be published. ${error.message || ''}`);
+    } finally {
+      setIsPublishingShared(false);
+    }
+  };
 
   useEffect(() => {
     const closeMenu = (event) => {
@@ -68,10 +141,11 @@ function App() {
     const nonDemoPlans = plans.filter(p => !p.isDemo);
     const hasSeenWelcome = localStorage.getItem('site_planner_welcomed');
     
-    if (nonDemoPlans.length === 0 || (!hasSeenWelcome && nonDemoPlans.length <= 1)) {
+    if (sharedStatus === 'loading') return;
+    if (sharedStatus !== 'ready' && (nonDemoPlans.length === 0 || (!hasSeenWelcome && nonDemoPlans.length <= 1))) {
       setIsWelcomeModalOpen(true);
     }
-  }, []);
+  }, [plans, sharedStatus]);
 
   const handleCloseWelcome = () => {
     localStorage.setItem('site_planner_welcomed', 'true');
@@ -110,6 +184,7 @@ function App() {
   }, [view, undo, redo]);
 
   const openEditDetails = (pageId) => {
+    if (isSharedReadOnly) return;
     setEditingPageId(pageId);
     window.history.pushState({ editingPageId: pageId }, '');
   };
@@ -172,6 +247,15 @@ function App() {
           </h1>
 
           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }}></div>
+          <SharedPlanBar
+            configured={isSharedStorageConfigured}
+            user={sharedUser}
+            canEdit={canEditShared}
+            status={sharedStatus}
+            updatedAt={sharedUpdatedAt}
+            onPublish={handlePublishShared}
+            publishing={isPublishingShared}
+          />
           
           {/* Multi-Plan Selector Button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -187,7 +271,7 @@ function App() {
               {activePlan.name} {activePlan.isDemo ? '(Demo)' : ''}
             </span>
 
-            {activePlan.sourceUrl && !activePlan.isDemo && (
+            {activePlan.sourceUrl && !activePlan.isDemo && !isSharedReadOnly && (
               <button
                 onClick={() => setIsSitemapRefreshOpen(true)}
                 style={{
@@ -201,7 +285,7 @@ function App() {
               </button>
             )}
 
-            <div ref={newPlanMenuRef} style={{ position: 'relative' }}>
+            {!isSharedReadOnly && <div ref={newPlanMenuRef} style={{ position: 'relative' }}>
               <button
                 onClick={() => setIsNewPlanMenuOpen(open => !open)}
                 aria-haspopup="menu"
@@ -267,7 +351,7 @@ function App() {
                   </button>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* Warning Banner for Unsaved Demo Plan */}
@@ -331,13 +415,13 @@ function App() {
             accept=".json" 
             style={{ display: 'none' }} 
           />
-          <button 
+            {!isSharedReadOnly && <button
             onClick={() => fileInputRef.current?.click()}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}
           >
             <Upload size={18} />
             <span style={{ fontSize: '0.875rem' }}>Import</span>
-          </button>
+          </button>}
           <button 
             onClick={exportData}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}
@@ -356,7 +440,7 @@ function App() {
           </button>
 
           {/* Undo / Redo Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {!isSharedReadOnly && <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               onClick={undo}
               disabled={past.length === 0}
@@ -383,7 +467,7 @@ function App() {
             >
               <Redo2 size={18} />
             </button>
-          </div>
+          </div>}
 
           <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-color)' }}></div>
           
@@ -397,10 +481,10 @@ function App() {
       {/* Main Content Area */}
       <main style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {view === 'flow' ? (
-          <FlowView onEditNode={openEditDetails} />
+          <FlowView onEditNode={openEditDetails} readOnly={isSharedReadOnly} />
         ) : (
           <div style={{ padding: '0 24px', height: '100%', overflowY: 'auto', backgroundColor: 'var(--bg-color)' }}>
-            <ListView onEditNode={openEditDetails} />
+            <ListView onEditNode={openEditDetails} readOnly={isSharedReadOnly} />
           </div>
         )}
 

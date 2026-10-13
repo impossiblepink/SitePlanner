@@ -33,7 +33,7 @@ export const parseSitemapDocument = (xmlText) => {
 };
 
 const proxyUrlFor = (url) => {
-  const endpoint = new URL('api/sitemap', document.baseURI);
+  const endpoint = new URL('/api/sitemap', window.location.origin);
   endpoint.searchParams.set('url', url);
   return endpoint.toString();
 };
